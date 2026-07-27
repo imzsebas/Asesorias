@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Renombrador de Asesorías</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+  :root{
+    --ink:#1c2430;
+    --ink-soft:#4a5568;
+    --paper:#f6f4ef;
+    --paper-card:#ffffff;
+    --line:#d8d4c8;
+    --stamp:#8a3324;
+    --stamp-soft:#c96f56;
+    --ok:#2f6f4f;
+    --ok-bg:#e8f1ea;
+    --warn:#a3701c;
+    --warn-bg:#faf1de;
+    --mono: 'Courier New', ui-monospace, monospace;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--paper);
+    background-image: radial-gradient(circle at 1px 1px, rgba(28,36,48,0.05) 1px, transparent 0);
+    background-size: 22px 22px;
+    color:var(--ink);
+    font-family: Georgia, 'Times New Roman', serif;
+    min-height:100vh;
+    padding: 32px 16px 80px;
+  }
+  .wrap{max-width:1100px; margin:0 auto;}
+  header{
+    display:flex;
+    align-items:baseline;
+    justify-content:space-between;
+    border-bottom: 2px solid var(--ink);
+    padding-bottom:14px;
+    margin-bottom:24px;
+    flex-wrap:wrap;
+    gap:10px;
+  }
+  h1{font-size:1.5rem; letter-spacing:0.02em; margin:0; font-weight:700;}
+  .sub{font-family: var(--mono); font-size:0.78rem; color:var(--ink-soft);}
+
+  .table-scroll{overflow-x:auto; border:1px solid var(--line); border-radius:4px; background:var(--paper-card);}
+  table.rows{
+    width:100%;
+    min-width:820px;
+    border-collapse:collapse;
+    table-layout:fixed;
+  }
+  table.rows thead th{
+    text-align:left;
+    font-size:0.72rem;
+    text-transform:uppercase;
+    letter-spacing:0.04em;
+    color:var(--ink-soft);
+    font-family:var(--mono);
+    padding:10px 12px;
+    border-bottom:1px solid var(--line);
+    background:#fbfaf7;
+  }
+  table.rows th.col-num{width:130px;}
+  table.rows th.col-rm{width:44px;}
+  table.rows td{
+    padding:12px;
+    border-bottom:1px solid var(--line);
+    vertical-align:top;
+  }
+  table.rows tbody tr:last-child td{border-bottom:none;}
+
+  .numero-cell input{
+    font-family:var(--mono);
+    font-size:0.95rem;
+    padding:8px 10px;
+    border:1px solid var(--ink);
+    border-radius:3px;
+    width:100%;
+  }
+
+  .drop{
+    border:1.5px dashed var(--line);
+    border-radius:4px;
+    padding:14px 8px;
+    text-align:center;
+    color:var(--ink-soft);
+    font-size:0.75rem;
+    cursor:pointer;
+    display:block;
+    transition: border-color .15s ease, background .15s ease;
+    min-height:56px;
+  }
+  .drop:hover, .drop.dragover{border-color:var(--stamp-soft); background:#fdf6f2;}
+  .drop input{display:none;}
+  .drop.has-file{border-style:solid; color:var(--ink); border-color: var(--ok); background:#f7fbf8;}
+
+  .status-pill{
+    font-size:0.65rem;
+    padding:2px 7px;
+    border-radius:20px;
+    font-family:var(--mono);
+    display:inline-block;
+    margin-top:6px;
+  }
+  .status-pill.ok{background:var(--ok-bg); color:var(--ok);}
+  .status-pill.warn{background:var(--warn-bg); color:var(--warn);}
+  .status-pill.idle{background:#eee; color:var(--ink-soft);}
+
+  .final-name{
+    font-family:var(--mono);
+    font-size:0.65rem;
+    color:var(--ink-soft);
+    margin-top:6px;
+    word-break:break-all;
+  }
+
+  .rm-btn{
+    background:transparent;
+    border:1px solid var(--line);
+    color:var(--ink-soft);
+    width:28px; height:28px;
+    padding:0;
+    border-radius:3px;
+    font-size:0.9rem;
+    line-height:1;
+  }
+  .rm-btn:hover{color:var(--stamp); border-color:var(--stamp-soft);}
+
+  button{
+    font-family: inherit;
+    cursor:pointer;
+    border-radius:3px;
+    border:1px solid var(--ink);
+    background:var(--ink);
+    color:#fff;
+    padding:9px 16px;
+    font-size:0.85rem;
+    letter-spacing:0.01em;
+    transition: transform .12s ease, opacity .12s ease;
+  }
+  button:hover{opacity:0.88;}
+  button:active{transform: scale(0.98);}
+  button:disabled{opacity:0.4; cursor:not-allowed;}
+  button.ghost{background:transparent; color:var(--ink);}
+
+  .toolbar{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    margin-top:14px;
+    flex-wrap:wrap;
+    gap:10px;
+  }
+
+  .action-row{
+    margin-top:22px;
+    display:flex;
+    justify-content:flex-end;
+    align-items:center;
+    gap:12px;
+  }
+  .action-row .msg{font-family:var(--mono); font-size:0.78rem; color:var(--ink-soft);}
+  footer{text-align:center; color:var(--ink-soft); font-size:0.75rem; margin-top:30px; font-family:var(--mono);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Renombrador de Asesorías</h1>
+    <span class="sub">se descarga un .zip con una carpeta por asesoría</span>
+  </header>
+
+  <div class="table-scroll">
+    <table class="rows">
+      <thead>
+        <tr>
+          <th class="col-num">Número de asesoría</th>
+          <th>ASESORÍA No.</th>
+          <th>ANEXOS ASESORÍA No.</th>
+          <th>FORMATO ARCHIVO ASESORIA No.</th>
+          <th class="col-rm"></th>
+        </tr>
+      </thead>
+      <tbody id="rowsBody"></tbody>
+    </table>
+  </div>
+
+  <div class="toolbar">
+    <button class="ghost" id="addRowBtn">+ Agregar fila</button>
+    <span></span>
+  </div>
+
+  <div class="action-row">
+    <span class="msg" id="actionMsg"></span>
+    <button id="downloadBtn" disabled>Descargar ZIP</button>
+  </div>
+
+  <footer>Arrastra cada PDF a su columna. Cada fila se guarda en el zip como [ASESORÍA No. ####] con sus 3 archivos dentro.</footer>
+</div>
+
+<script>
+const TEMPLATES = [
+  { label: "ASESORÍA No.", prefix: "ASESORÍA No." },
+  { label: "ANEXOS ASESORÍA No.", prefix: "ANEXOS ASESORÍA No." },
+  { label: "FORMATO ARCHIVO ASESORIA No.", prefix: "FORMATO ARCHIVO ASESORIA No." }
+];
+
+const rowsBody = document.getElementById('rowsBody');
+const addRowBtn = document.getElementById('addRowBtn');
+const downloadBtn = document.getElementById('downloadBtn');
+const actionMsg = document.getElementById('actionMsg');
+
+let rowCounter = 0;
+const rowsData = {}; // id -> { numero: '', files: [null,null,null] }
+
+function addRow(){
+  const id = 'row-' + (rowCounter++);
+  rowsData[id] = { numero: '', files: [null, null, null] };
+
+  const tr = document.createElement('tr');
+  tr.id = id;
+
+  const numTd = document.createElement('td');
+  numTd.className = 'numero-cell';
+  numTd.innerHTML = `<input type="text" placeholder="ej. 4113" id="numero-${id}">`;
+  tr.appendChild(numTd);
+
+  TEMPLATES.forEach((tpl, idx) => {
+    const td = document.createElement('td');
+    td.innerHTML = `
+      <label class="drop" id="drop-${id}-${idx}">
+        <input type="file" accept="application/pdf" id="file-${id}-${idx}">
+        <span id="dropText-${id}-${idx}">Arrastra o haz clic</span>
+      </label>
+      <div class="status-pill idle" id="status-${id}-${idx}">sin archivo</div>
+      <div class="final-name" id="finalname-${id}-${idx}">${tpl.prefix} —.pdf</div>
+    `;
+    tr.appendChild(td);
+  });
+
+  const rmTd = document.createElement('td');
+  rmTd.innerHTML = `<button class="rm-btn" id="rm-${id}" title="Eliminar fila">✕</button>`;
+  tr.appendChild(rmTd);
+
+  rowsBody.appendChild(tr);
+
+  const numeroInput = tr.querySelector(`#numero-${id}`);
+  numeroInput.addEventListener('input', () => {
+    rowsData[id].numero = numeroInput.value.trim();
+    renderFinalNames(id);
+    updateDownloadState();
+  });
+
+  TEMPLATES.forEach((tpl, idx) => {
+    const input = tr.querySelector(`#file-${id}-${idx}`);
+    const dropLabel = tr.querySelector(`#drop-${id}-${idx}`);
+    const dropText = tr.querySelector(`#dropText-${id}-${idx}`);
+    const statusEl = tr.querySelector(`#status-${id}-${idx}`);
+
+    ['dragover','dragleave','drop'].forEach(evt => {
+      dropLabel.addEventListener(evt, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if(evt === 'dragover') dropLabel.classList.add('dragover');
+        else dropLabel.classList.remove('dragover');
+        if(evt === 'drop' && e.dataTransfer.files.length){
+          input.files = e.dataTransfer.files;
+          handleFile(e.dataTransfer.files[0]);
+        }
+      });
+    });
+
+    input.addEventListener('change', () => {
+      if(input.files.length) handleFile(input.files[0]);
+    });
+
+    async function handleFile(file){
+      rowsData[id].files[idx] = file;
+      dropLabel.classList.add('has-file');
+      dropText.textContent = file.name;
+      statusEl.textContent = 'buscando número...';
+      statusEl.className = 'status-pill idle';
+
+      let numero = extractFromFilename(file.name);
+      let source = 'nombre del archivo';
+      if(!numero){
+        try{
+          numero = await extractFromPdfContent(file);
+          source = 'contenido del PDF';
+        }catch(e){ numero = null; }
+      }
+
+      if(numero){
+        statusEl.textContent = `detectado (${source})`;
+        statusEl.className = 'status-pill ok';
+        if(!numeroInput.value.trim()){
+          numeroInput.value = numero;
+          rowsData[id].numero = numero;
+        }
+      }else{
+        statusEl.textContent = 'no detectado';
+        statusEl.className = 'status-pill warn';
+      }
+
+      renderFinalNames(id);
+      updateDownloadState();
+    }
+  });
+
+  const rmBtn = tr.querySelector(`#rm-${id}`);
+  rmBtn.addEventListener('click', () => {
+    delete rowsData[id];
+    tr.remove();
+    updateDownloadState();
+  });
+
+  updateDownloadState();
+}
+
+function renderFinalNames(id){
+  const n = rowsData[id].numero || '—';
+  TEMPLATES.forEach((tpl, idx) => {
+    const el = document.getElementById(`finalname-${id}-${idx}`);
+    if(el) el.textContent = `${tpl.prefix} ${n}.pdf`;
+  });
+}
+
+addRowBtn.addEventListener('click', addRow);
+
+function updateDownloadState(){
+  const ids = Object.keys(rowsData);
+  if(ids.length === 0){
+    downloadBtn.disabled = true;
+    actionMsg.textContent = 'Agrega al menos una fila';
+    return;
+  }
+  const allComplete = ids.every(id => {
+    const r = rowsData[id];
+    return r.numero.length > 0 && r.files.every(f => f !== null);
+  });
+  downloadBtn.disabled = !allComplete;
+  actionMsg.textContent = allComplete
+    ? `Listo para generar el ZIP (${ids.length} asesoría${ids.length > 1 ? 's' : ''})`
+    : 'Completa número y 3 archivos en cada fila';
+}
+
+downloadBtn.addEventListener('click', async () => {
+  const ids = Object.keys(rowsData);
+  if(ids.length === 0) return;
+  downloadBtn.disabled = true;
+  actionMsg.textContent = 'Generando ZIP...';
+
+  try{
+    const zip = new JSZip();
+    ids.forEach(id => {
+      const r = rowsData[id];
+      const folder = zip.folder(`ASESORÍA No. ${r.numero}`);
+      TEMPLATES.forEach((tpl, idx) => {
+        const finalName = `${tpl.prefix} ${r.numero}.pdf`;
+        folder.file(finalName, r.files[idx]);
+      });
+    });
+
+    const blob = await zip.generateAsync({ type: 'blob' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'Asesorias.zip';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    actionMsg.textContent = `ZIP descargado con ${ids.length} asesoría${ids.length > 1 ? 's' : ''}`;
+  }catch(err){
+    actionMsg.textContent = 'Error al generar el ZIP: ' + err.message;
+  }
+  downloadBtn.disabled = false;
+});
+
+function extractFromFilename(name){
+  let m = name.match(/no\.?\s*(\d{3,6})/i);
+  if(m) return m[1];
+  const all = name.match(/\d{3,6}/g);
+  if(all && all.length) return all.sort((a,b) => b.length - a.length)[0];
+  return null;
+}
+
+async function extractFromPdfContent(file){
+  const buffer = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
+  const maxPages = Math.min(pdf.numPages, 2);
+  let fullText = '';
+  for(let i = 1; i <= maxPages; i++){
+    const page = await pdf.getPage(i);
+    const content = await page.getTextContent();
+    fullText += content.items.map(it => it.str).join(' ') + ' ';
+  }
+  let m = fullText.match(/asesor[ií]a\s*no\.?\s*(\d{3,6})/i);
+  if(m) return m[1];
+  m = fullText.match(/no\.?\s*(\d{3,6})/i);
+  if(m) return m[1];
+  return null;
+}
+
+if(window.pdfjsLib){
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+}
+
+addRow();
+</script>
+</body>
+</html>
