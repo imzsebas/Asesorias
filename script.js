@@ -239,11 +239,17 @@ function checkMismatch(id){
   }
 }
 
+// Rellena el número con ceros a la izquierda hasta 4 dígitos (ej. "13" -> "0013").
+// Si el número ya tiene 4 o más dígitos, se deja igual.
+function formatNumero(numero){
+  return numero.toString().padStart(4, '0');
+}
+
 function renderFinalNames(id){
-  const n = rowsData[id].numero || '—';
+  const n = rowsData[id].numero ? formatNumero(rowsData[id].numero) : '—';
   TEMPLATES.forEach((tpl, idx) => {
     const el = document.getElementById(`finalname-${id}-${idx}`);
-    if(el) el.textContent = `${tpl.prefix} ${n}.pdf`;
+    if(el) el.textContent = `${tpl.prefix}${n}.pdf`;
   });
 }
 
@@ -276,7 +282,7 @@ function updateDownloadState(){
   downloadBtn.disabled = !allComplete;
   actionMsg.textContent = allComplete
     ? `Listo para generar el ZIP (${ids.length} asesoría${ids.length > 1 ? 's' : ''})`
-    : '';
+    : 'Completa número, área, semestre y los archivos requeridos en cada fila';
 }
 
 downloadBtn.addEventListener('click', async () => {
@@ -288,7 +294,8 @@ downloadBtn.addEventListener('click', async () => {
   try{
     const zip = new JSZip();
     const summaryLines = [
-
+      'Código de asesoría | Área del derecho | Semestre',
+      '-------------------------------------------------'
     ];
 
     // Agrupamos por "Área + Semestre" (p.ej. "Derecho Laboral 2026-1") y,
@@ -297,18 +304,19 @@ downloadBtn.addEventListener('click', async () => {
     ids.forEach(id => {
       const r = rowsData[id];
       const areaLabel = AREAS.find(a => a.value === r.area)?.label || r.area;
+      const numeroFmt = formatNumero(r.numero);
       const groupFolderName = `${areaLabel} ${r.semestre}`;
       const groupFolder = zip.folder(groupFolderName);
-      const asesoriaFolder = groupFolder.folder(`ASESORÍA No.${r.numero}`);
+      const asesoriaFolder = groupFolder.folder(`ASESORÍA No.${numeroFmt}`);
 
       TEMPLATES.forEach((tpl, idx) => {
         const file = r.files[idx];
         if(!file) return; // ANEXOS puede no venir; no se incluye en el zip
-        const finalName = `${tpl.prefix}${r.numero}.pdf`;
+        const finalName = `${tpl.prefix}${numeroFmt}.pdf`;
         asesoriaFolder.file(finalName, file);
       });
 
-      summaryLines.push(`${r.numero} | ${areaLabel} | ${r.semestre}`);
+      summaryLines.push(`${numeroFmt} | ${areaLabel} | ${r.semestre}`);
     });
 
     zip.file('resumen_asesorias.txt', summaryLines.join('\n'));
