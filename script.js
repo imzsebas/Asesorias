@@ -288,8 +288,7 @@ downloadBtn.addEventListener('click', async () => {
   try{
     const zip = new JSZip();
     const summaryLines = [
-      'Código de asesoría | Área del derecho | Semestre',
-      '-------------------------------------------------'
+
     ];
 
     // Agrupamos por "Área + Semestre" (p.ej. "Derecho Laboral 2026-1") y,
@@ -300,12 +299,12 @@ downloadBtn.addEventListener('click', async () => {
       const areaLabel = AREAS.find(a => a.value === r.area)?.label || r.area;
       const groupFolderName = `${areaLabel} ${r.semestre}`;
       const groupFolder = zip.folder(groupFolderName);
-      const asesoriaFolder = groupFolder.folder(`ASESORÍA No. ${r.numero}`);
+      const asesoriaFolder = groupFolder.folder(`ASESORÍA No.${r.numero}`);
 
       TEMPLATES.forEach((tpl, idx) => {
         const file = r.files[idx];
         if(!file) return; // ANEXOS puede no venir; no se incluye en el zip
-        const finalName = `${tpl.prefix} ${r.numero}.pdf`;
+        const finalName = `${tpl.prefix}${r.numero}.pdf`;
         asesoriaFolder.file(finalName, file);
       });
 
