@@ -239,7 +239,7 @@ downloadBtn.addEventListener('click', async () => {
       TEMPLATES.forEach((tpl, idx) => {
         const file = r.files[idx];
         if(!file) return; // ANEXOS puede no venir; no se incluye en el zip
-        const finalName = `${tpl.prefix} ${r.numero}.pdf`;
+        const finalName = `${tpl.prefix}${r.numero}.pdf`;
         folder.file(finalName, file);
       });
     });
