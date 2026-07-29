@@ -92,7 +92,7 @@ h1{
 }
 table.rows{
   width:100%;
-  min-width:900px;
+  min-width:1160px;
   border-collapse:separate;
   border-spacing:0;
   table-layout:fixed;
@@ -112,6 +112,7 @@ table.rows thead th{
 table.rows thead th:first-child{border-top-left-radius:var(--radius);}
 table.rows thead th:last-child{border-top-right-radius:var(--radius);}
 table.rows th.col-num{width:130px;}
+table.rows th.col-select{width:150px;}
 table.rows th.col-estado{width:110px;}
 table.rows th.col-rm{width:44px;}
 
@@ -192,6 +193,25 @@ table.rows tbody tr:last-child td{border-bottom:none;}
 .status-pill.ok{background:var(--ok-bg); color:var(--ok);}
 .status-pill.warn{background:var(--warn-bg); color:var(--warn);}
 .status-pill.idle{background:var(--surface-sunken); color:var(--ink-faint); border:1px solid var(--line);}
+
+.select-cell select{
+  font-family:var(--font-body);
+  font-size:0.82rem;
+  padding:9px 10px;
+  border:1.5px solid var(--line);
+  border-radius:var(--radius-sm);
+  width:100%;
+  background:var(--surface);
+  color:var(--ink);
+  cursor:pointer;
+  transition: border-color .12s ease, box-shadow .12s ease;
+}
+.select-cell select:focus{
+  outline:none;
+  border-color:var(--green-500);
+  box-shadow:0 0 0 3px rgba(40,163,93,0.15);
+}
+.select-cell select:invalid, .select-cell select[value=""]{color:var(--ink-faint);}
 
 .estado-cell{text-align:center;}
 .estado-cell .status-pill{margin-top:0;}

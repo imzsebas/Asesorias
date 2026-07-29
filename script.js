@@ -5,13 +5,33 @@ const TEMPLATES = [
   { label: "FORMATO ARCHIVO ASESORIA No.", prefix: "FORMATO ARCHIVO ASESORIA No.", optional: false }
 ];
 
+const AREAS = [
+  { value: 'laboral', label: 'Derecho Laboral' },
+  { value: 'penal', label: 'Derecho Penal' },
+  { value: 'privado', label: 'Derecho Privado' },
+  { value: 'publico', label: 'Derecho Público' }
+];
+
+// Genera opciones tipo "2026-1" / "2026-2" para un rango razonable de años
+// alrededor del año actual, calculado en el navegador (siempre vigente).
+function buildSemestreOptions(){
+  const y = new Date().getFullYear();
+  const opts = [];
+  for(let year = y - 1; year <= y + 3; year++){
+    opts.push(`${year}-1`);
+    opts.push(`${year}-2`);
+  }
+  return opts;
+}
+const SEMESTRES = buildSemestreOptions();
+
 const rowsBody = document.getElementById('rowsBody');
 const addRowBtn = document.getElementById('addRowBtn');
 const downloadBtn = document.getElementById('downloadBtn');
 const actionMsg = document.getElementById('actionMsg');
 
 let rowCounter = 0;
-// id -> { numero, numeroTouched, files: [null,null,null], detected: [null,null,null] }
+// id -> { numero, numeroTouched, area, semestre, files: [null,null,null], detected: [null,null,null] }
 const rowsData = {};
 
 // Evita que el navegador navegue a "file://" o abra el PDF a pantalla completa
@@ -21,7 +41,7 @@ window.addEventListener('drop', (e) => e.preventDefault());
 
 function addRow(){
   const id = 'row-' + (rowCounter++);
-  rowsData[id] = { numero: '', numeroTouched: false, files: [null, null, null], detected: [null, null, null] };
+  rowsData[id] = { numero: '', numeroTouched: false, area: '', semestre: '', files: [null, null, null], detected: [null, null, null] };
 
   const tr = document.createElement('tr');
   tr.id = id;
@@ -47,6 +67,26 @@ function addRow(){
     tr.appendChild(td);
   });
 
+  const areaTd = document.createElement('td');
+  areaTd.className = 'select-cell';
+  areaTd.innerHTML = `
+    <select id="area-${id}">
+      <option value="">Selecciona…</option>
+      ${AREAS.map(a => `<option value="${a.value}">${a.label}</option>`).join('')}
+    </select>
+  `;
+  tr.appendChild(areaTd);
+
+  const semestreTd = document.createElement('td');
+  semestreTd.className = 'select-cell';
+  semestreTd.innerHTML = `
+    <select id="semestre-${id}">
+      <option value="">Selecciona…</option>
+      ${SEMESTRES.map(s => `<option value="${s}">${s}</option>`).join('')}
+    </select>
+  `;
+  tr.appendChild(semestreTd);
+
   const estadoTd = document.createElement('td');
   estadoTd.className = 'estado-cell';
   estadoTd.innerHTML = `<span class="status-pill idle" id="estado-${id}">incompleto</span>`;
@@ -64,6 +104,20 @@ function addRow(){
     rowsData[id].numeroTouched = numeroInput.value.trim().length > 0;
     renderFinalNames(id);
     checkMismatch(id);
+    updateRowEstado(id);
+    updateDownloadState();
+  });
+
+  const areaSelect = tr.querySelector(`#area-${id}`);
+  areaSelect.addEventListener('change', () => {
+    rowsData[id].area = areaSelect.value;
+    updateRowEstado(id);
+    updateDownloadState();
+  });
+
+  const semestreSelect = tr.querySelector(`#semestre-${id}`);
+  semestreSelect.addEventListener('change', () => {
+    rowsData[id].semestre = semestreSelect.value;
     updateRowEstado(id);
     updateDownloadState();
   });
@@ -198,7 +252,7 @@ function renderFinalNames(id){
 function isRowComplete(id){
   const r = rowsData[id];
   const requiredOk = TEMPLATES.every((tpl, idx) => tpl.optional || r.files[idx] !== null);
-  return r.numero.length > 0 && requiredOk;
+  return r.numero.length > 0 && requiredOk && r.area !== '' && r.semestre !== '';
 }
 
 function updateRowEstado(id){
@@ -222,7 +276,7 @@ function updateDownloadState(){
   downloadBtn.disabled = !allComplete;
   actionMsg.textContent = allComplete
     ? `Listo para generar el ZIP (${ids.length} asesoría${ids.length > 1 ? 's' : ''})`
-    : '';
+    : 'Completa número, área, semestre y los archivos requeridos en cada fila';
 }
 
 downloadBtn.addEventListener('click', async () => {
@@ -233,16 +287,32 @@ downloadBtn.addEventListener('click', async () => {
 
   try{
     const zip = new JSZip();
+    const summaryLines = [
+      'Código de asesoría | Área del derecho | Semestre',
+      '-------------------------------------------------'
+    ];
+
+    // Agrupamos por "Área + Semestre" (p.ej. "Derecho Laboral 2026-1") y,
+    // dentro de cada grupo, cada asesoría mantiene su propia subcarpeta.
+    // Los nombres de los PDFs no cambian, solo las carpetas que los contienen.
     ids.forEach(id => {
       const r = rowsData[id];
-      const folder = zip.folder(`ASESORÍA No.${r.numero}`);
+      const areaLabel = AREAS.find(a => a.value === r.area)?.label || r.area;
+      const groupFolderName = `${areaLabel} ${r.semestre}`;
+      const groupFolder = zip.folder(groupFolderName);
+      const asesoriaFolder = groupFolder.folder(`ASESORÍA No. ${r.numero}`);
+
       TEMPLATES.forEach((tpl, idx) => {
         const file = r.files[idx];
         if(!file) return; // ANEXOS puede no venir; no se incluye en el zip
-        const finalName = `${tpl.prefix}${r.numero}.pdf`;
-        folder.file(finalName, file);
+        const finalName = `${tpl.prefix} ${r.numero}.pdf`;
+        asesoriaFolder.file(finalName, file);
       });
+
+      summaryLines.push(`${r.numero} | ${areaLabel} | ${r.semestre}`);
     });
+
+    zip.file('resumen_asesorias.txt', summaryLines.join('\n'));
 
     const blob = await zip.generateAsync({ type: 'blob' });
     const url = URL.createObjectURL(blob);
