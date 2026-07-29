@@ -17,7 +17,7 @@ const AREAS = [
 function buildSemestreOptions(){
   const y = new Date().getFullYear();
   const opts = [];
-  for(let year = y - 1; year <= y + 3; year++){
+  for(let year = 2020; year <= y + 3; year++){
     opts.push(`${year}-1`);
     opts.push(`${year}-2`);
   }
@@ -276,7 +276,7 @@ function updateDownloadState(){
   downloadBtn.disabled = !allComplete;
   actionMsg.textContent = allComplete
     ? `Listo para generar el ZIP (${ids.length} asesoría${ids.length > 1 ? 's' : ''})`
-    : 'Completa número, área, semestre y los archivos requeridos en cada fila';
+    : '';
 }
 
 downloadBtn.addEventListener('click', async () => {
