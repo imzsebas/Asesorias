@@ -25,6 +25,30 @@ function buildSemestreOptions(){
 }
 const SEMESTRES = buildSemestreOptions();
 
+// --- Tema claro/oscuro ---
+const themeToggle = document.getElementById('themeToggle');
+const themeToggleLabel = document.getElementById('themeToggleLabel');
+
+function applyTheme(theme){
+  document.documentElement.setAttribute('data-theme', theme);
+  themeToggleLabel.textContent = theme === 'light' ? 'Modo oscuro' : 'Modo claro';
+}
+
+function getInitialTheme(){
+  const saved = localStorage.getItem('theme');
+  if(saved === 'light' || saved === 'dark') return saved;
+  return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+}
+
+applyTheme(getInitialTheme());
+
+themeToggle.addEventListener('click', () => {
+  const current = document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
+  const next = current === 'light' ? 'dark' : 'light';
+  applyTheme(next);
+  localStorage.setItem('theme', next);
+});
+
 const rowsBody = document.getElementById('rowsBody');
 const addRowBtn = document.getElementById('addRowBtn');
 const downloadBtn = document.getElementById('downloadBtn');
@@ -59,7 +83,7 @@ function addRow(){
         <span class="drop-icon" aria-hidden="true">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 3v12m0 0-4-4m4 4 4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </span>
-        <span id="dropText-${id}-${idx}">Arrastra o haz clic${tpl.optional ? ' (opcional)' : ''}</span>
+        <span id="dropText-${id}-${idx}">Arrastra o haz clic</span>
       </label>
       <div class="status-pill idle" id="status-${id}-${idx}">${tpl.optional ? 'opcional' : 'sin archivo'}</div>
       <div class="final-name" id="finalname-${id}-${idx}">${tpl.prefix} —.pdf</div>
@@ -86,11 +110,6 @@ function addRow(){
     </select>
   `;
   tr.appendChild(semestreTd);
-
-  const estadoTd = document.createElement('td');
-  estadoTd.className = 'estado-cell';
-  estadoTd.innerHTML = `<span class="status-pill idle" id="estado-${id}">incompleto</span>`;
-  tr.appendChild(estadoTd);
 
   const rmTd = document.createElement('td');
   rmTd.innerHTML = `<button class="rm-btn" id="rm-${id}" title="Eliminar fila">✕</button>`;
@@ -262,11 +281,10 @@ function isRowComplete(id){
 }
 
 function updateRowEstado(id){
-  const el = document.getElementById(`estado-${id}`);
-  if(!el) return;
+  const tr = document.getElementById(id);
+  if(!tr) return;
   const complete = isRowComplete(id);
-  el.textContent = complete ? 'completo' : 'incompleto';
-  el.className = `status-pill ${complete ? 'ok' : 'warn'}`;
+  tr.classList.toggle('row-incomplete', !complete);
 }
 
 addRowBtn.addEventListener('click', addRow);
