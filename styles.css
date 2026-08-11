@@ -342,3 +342,120 @@ footer{
   margin-top:32px;
   font-family:var(--font-mono);
 }
+
+/* ===================== RESPONSIVE ===================== */
+
+@media (max-width: 960px){
+  body{padding: 28px 18px 90px;}
+  table.rows th.col-num{width:110px;}
+}
+
+/* Tablet: la tabla se vuelve desplazable horizontalmente en vez de aplastarse */
+@media (max-width: 860px){
+  .table-scroll{
+    overflow-x:auto;
+    -webkit-overflow-scrolling:touch;
+    border:1px solid var(--line);
+    border-radius:var(--radius-sm);
+  }
+  table.rows{
+    min-width:760px;
+  }
+  table.rows td, table.rows th{
+    padding-right:16px;
+  }
+}
+
+/* Móvil: cada fila se convierte en una tarjeta apilada, sin scroll lateral */
+@media (max-width: 620px){
+  body{padding: 20px 14px 80px;}
+
+  header{
+    align-items:flex-start;
+  }
+  h1{font-size:1.25rem;}
+
+  .table-scroll{
+    overflow-x:visible;
+    border:none;
+  }
+  table.rows{
+    min-width:0;
+    width:100%;
+  }
+  table.rows thead{
+    position:absolute;
+    width:1px; height:1px;
+    overflow:hidden;
+    clip:rect(0 0 0 0);
+    white-space:nowrap;
+  }
+  table.rows, table.rows tbody, table.rows tr, table.rows td{
+    display:block;
+    width:100%;
+  }
+  table.rows tbody tr{
+    border:1px solid var(--line);
+    border-left:3px solid var(--line);
+    border-radius:var(--radius-sm);
+    margin-bottom:16px;
+    padding:6px 16px 12px;
+    background:var(--surface-sunken);
+  }
+  table.rows tbody tr:hover{border-left-color:var(--blue-500);}
+  table.rows tbody tr.row-incomplete{border-left-color:var(--warn);}
+  table.rows tbody tr:last-child{margin-bottom:0;}
+
+  table.rows td{
+    text-align:left;
+    padding:12px 0;
+    border-bottom:1px solid var(--line-soft);
+  }
+  table.rows tbody tr td:last-child{border-bottom:none; padding-top:4px;}
+
+  /* Etiqueta visible encima de cada celda, tomada del encabezado correspondiente */
+  table.rows td::before{
+    display:block;
+    font-family:var(--font-mono);
+    font-size:0.66rem;
+    text-transform:uppercase;
+    letter-spacing:0.06em;
+    color:var(--blue-400);
+    margin-bottom:8px;
+  }
+  table.rows td.numero-cell::before{content:"Número de asesoría";}
+  table.rows td.select-cell:nth-of-type(5)::before{content:"Área del derecho";}
+  table.rows td.select-cell:nth-of-type(6)::before{content:"Semestre";}
+  table.rows td:nth-of-type(2)::before{content:"ASESORÍA No.";}
+  table.rows td:nth-of-type(3)::before{content:"ANEXOS ASESORÍA No.";}
+  table.rows td:nth-of-type(4)::before{content:"FORMATO ARCHIVO ASESORIA No.";}
+  table.rows td:last-child::before{display:none;}
+
+  .rm-btn{
+    width:100%;
+    height:36px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:6px;
+  }
+  .rm-btn::after{content:" Eliminar fila"; font-size:0.75rem; font-family:var(--font-body);}
+
+  .toolbar{
+    margin-top:20px;
+  }
+  .toolbar .ghost{width:100%;}
+
+  .action-row{
+    flex-direction:column-reverse;
+    align-items:stretch;
+    gap:10px;
+  }
+  .action-row .msg{text-align:center;}
+  .action-row button:not(.ghost){width:100%;}
+}
+
+@media (max-width: 380px){
+  h1{font-size:1.1rem;}
+  .theme-toggle span{display:none;}
+}

@@ -300,7 +300,7 @@ function updateDownloadState(){
   downloadBtn.disabled = !allComplete;
   actionMsg.textContent = allComplete
     ? `Listo para generar el ZIP (${ids.length} asesoría${ids.length > 1 ? 's' : ''})`
-    : 'Completa número, área, semestre y los archivos requeridos en cada fila';
+    : '';
 }
 
 downloadBtn.addEventListener('click', async () => {
