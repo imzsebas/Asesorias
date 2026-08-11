@@ -17,7 +17,7 @@ const AREAS = [
 function buildSemestreOptions(){
   const y = new Date().getFullYear();
   const opts = [];
-  for(let year = 2020; year <= y + 3; year++){
+  for(let year = 2020; year <= y; year++){
     opts.push(`${year}-1`);
     opts.push(`${year}-2`);
   }
