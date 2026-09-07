@@ -261,6 +261,7 @@ function addRow(restored){
     updateRowEstado(id);
     updateDownloadState();
     dbPutRow(id);
+    maybeAutoAddRow(id);
   });
 
   const areaSelect = tr.querySelector(`#area-${id}`);
@@ -269,6 +270,7 @@ function addRow(restored){
     updateRowEstado(id);
     updateDownloadState();
     dbPutRow(id);
+    maybeAutoAddRow(id);
   });
 
   const semestreSelect = tr.querySelector(`#semestre-${id}`);
@@ -277,6 +279,7 @@ function addRow(restored){
     updateRowEstado(id);
     updateDownloadState();
     dbPutRow(id);
+    maybeAutoAddRow(id);
   });
 
   TEMPLATES.forEach((tpl, idx) => {
@@ -353,6 +356,7 @@ function addRow(restored){
       updateRowEstado(id);
       updateDownloadState();
       dbPutRow(id);
+      maybeAutoAddRow(id);
     }
 
     // Si la fila se está restaurando desde el autoguardado, ya tenemos el
@@ -380,6 +384,9 @@ function addRow(restored){
     tr.remove();
     dbDeleteRow(id);
     updateDownloadState();
+    if(Object.keys(rowsData).length === 0){
+      addRow();
+    }
   });
 
   if(restored){
@@ -451,6 +458,20 @@ function updateRowEstado(id){
   if(!tr) return;
   const complete = isRowComplete(id);
   tr.classList.toggle('row-incomplete', !complete);
+}
+
+// Si la fila que acaba de completarse es la última de la tabla, agrega
+// automáticamente una fila vacía nueva para seguir cargando sin tener
+// que hacer clic en "+ Agregar". Se marca con autoExpanded para no
+// duplicar filas si el usuario sigue editando esa misma fila completa.
+function maybeAutoAddRow(id){
+  const r = rowsData[id];
+  if(!r || r.autoExpanded) return;
+  if(!isRowComplete(id)) return;
+  const tr = document.getElementById(id);
+  if(!tr || tr !== rowsBody.lastElementChild) return;
+  r.autoExpanded = true;
+  addRow();
 }
 
 addRowBtn.addEventListener('click', () => addRow());
