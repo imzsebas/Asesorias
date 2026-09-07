@@ -49,8 +49,132 @@ themeToggle.addEventListener('click', () => {
   localStorage.setItem('theme', next);
 });
 
+// =====================================================================
+// Autoguardado en IndexedDB
+// Guarda cada fila (incluyendo los PDFs como Blob) en el disco del
+// navegador. A diferencia de mantenerlo solo en memoria, esto sobrevive
+// a un cierre inesperado, un cuelgue del PC o un refresh accidental.
+// Limitación real: vive únicamente en este navegador y este equipo; no
+// se sincroniza entre dispositivos ni sirve como respaldo en la nube.
+// =====================================================================
+const DB_NAME = 'asesorias-autosave';
+const DB_VERSION = 1;
+const STORE_NAME = 'rows';
+
+function openDB(){
+  return new Promise((resolve, reject) => {
+    if(!window.indexedDB){
+      reject(new Error('IndexedDB no disponible en este navegador'));
+      return;
+    }
+    const req = indexedDB.open(DB_NAME, DB_VERSION);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if(!db.objectStoreNames.contains(STORE_NAME)){
+        db.createObjectStore(STORE_NAME, { keyPath: 'id' });
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+let dbPromise = null;
+function getDB(){
+  if(!dbPromise) dbPromise = openDB();
+  return dbPromise;
+}
+
+function txDone(tx){
+  return new Promise((resolve, reject) => {
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(tx.error);
+  });
+}
+
+async function dbPutRow(id){
+  const r = rowsData[id];
+  if(!r) return;
+  try{
+    const db = await getDB();
+    const tx = db.transaction(STORE_NAME, 'readwrite');
+    tx.objectStore(STORE_NAME).put({
+      id,
+      numero: r.numero,
+      numeroTouched: r.numeroTouched,
+      area: r.area,
+      semestre: r.semestre,
+      files: r.files,
+      detected: r.detected
+    });
+    await txDone(tx);
+    setSaveIndicator('ok');
+  }catch(e){
+    console.error('No se pudo autoguardar la fila', e);
+    setSaveIndicator('error');
+  }
+}
+
+async function dbDeleteRow(id){
+  try{
+    const db = await getDB();
+    const tx = db.transaction(STORE_NAME, 'readwrite');
+    tx.objectStore(STORE_NAME).delete(id);
+    await txDone(tx);
+  }catch(e){
+    console.error('No se pudo borrar la fila guardada', e);
+  }
+}
+
+async function dbGetAllRows(){
+  try{
+    const db = await getDB();
+    const tx = db.transaction(STORE_NAME, 'readonly');
+    const req = tx.objectStore(STORE_NAME).getAll();
+    const rows = await new Promise((resolve, reject) => {
+      req.onsuccess = () => resolve(req.result || []);
+      req.onerror = () => reject(req.error);
+    });
+    await txDone(tx);
+    return rows;
+  }catch(e){
+    console.error('No se pudo leer el autoguardado', e);
+    return [];
+  }
+}
+
+async function dbClearAll(){
+  try{
+    const db = await getDB();
+    const tx = db.transaction(STORE_NAME, 'readwrite');
+    tx.objectStore(STORE_NAME).clear();
+    await txDone(tx);
+  }catch(e){
+    console.error('No se pudo vaciar el autoguardado', e);
+  }
+}
+
+const saveIndicator = document.getElementById('saveIndicator');
+let saveIndicatorTimeout = null;
+function setSaveIndicator(state){
+  if(!saveIndicator) return;
+  if(state === 'ok'){
+    saveIndicator.textContent = 'Guardado ✓';
+    saveIndicator.className = 'save-indicator ok';
+  }else{
+    saveIndicator.textContent = 'Error al guardar localmente';
+    saveIndicator.className = 'save-indicator error';
+  }
+  clearTimeout(saveIndicatorTimeout);
+  if(state === 'ok'){
+    saveIndicatorTimeout = setTimeout(() => { saveIndicator.textContent = ''; saveIndicator.className = 'save-indicator'; }, 1500);
+  }
+}
+
 const rowsBody = document.getElementById('rowsBody');
 const addRowBtn = document.getElementById('addRowBtn');
+const clearSavedBtn = document.getElementById('clearSavedBtn');
 const downloadBtn = document.getElementById('downloadBtn');
 const actionMsg = document.getElementById('actionMsg');
 
@@ -63,9 +187,20 @@ const rowsData = {};
 window.addEventListener('dragover', (e) => e.preventDefault());
 window.addEventListener('drop', (e) => e.preventDefault());
 
-function addRow(){
-  const id = 'row-' + (rowCounter++);
-  rowsData[id] = { numero: '', numeroTouched: false, area: '', semestre: '', files: [null, null, null], detected: [null, null, null] };
+// `restored` (opcional) trae los datos de una fila recuperada del
+// autoguardado: { id, numero, numeroTouched, area, semestre, files, detected }
+function addRow(restored){
+  const id = restored ? restored.id : 'row-' + (rowCounter++);
+  rowsData[id] = restored
+    ? {
+        numero: restored.numero || '',
+        numeroTouched: !!restored.numeroTouched,
+        area: restored.area || '',
+        semestre: restored.semestre || '',
+        files: restored.files || [null, null, null],
+        detected: restored.detected || [null, null, null]
+      }
+    : { numero: '', numeroTouched: false, area: '', semestre: '', files: [null, null, null], detected: [null, null, null] };
 
   const tr = document.createElement('tr');
   tr.id = id;
@@ -125,6 +260,7 @@ function addRow(){
     checkMismatch(id);
     updateRowEstado(id);
     updateDownloadState();
+    dbPutRow(id);
   });
 
   const areaSelect = tr.querySelector(`#area-${id}`);
@@ -132,6 +268,7 @@ function addRow(){
     rowsData[id].area = areaSelect.value;
     updateRowEstado(id);
     updateDownloadState();
+    dbPutRow(id);
   });
 
   const semestreSelect = tr.querySelector(`#semestre-${id}`);
@@ -139,6 +276,7 @@ function addRow(){
     rowsData[id].semestre = semestreSelect.value;
     updateRowEstado(id);
     updateDownloadState();
+    dbPutRow(id);
   });
 
   TEMPLATES.forEach((tpl, idx) => {
@@ -214,6 +352,25 @@ function addRow(){
       checkMismatch(id);
       updateRowEstado(id);
       updateDownloadState();
+      dbPutRow(id);
+    }
+
+    // Si la fila se está restaurando desde el autoguardado, ya tenemos el
+    // archivo (Blob/File) en memoria: no hace falta re-detectar, solo
+    // reflejarlo en la interfaz.
+    if(restored && restored.files && restored.files[idx]){
+      const file = restored.files[idx];
+      dropLabel.classList.add('has-file');
+      dropText.textContent = file.name || 'archivo restaurado';
+      if(restored.detected && restored.detected[idx]){
+        statusEl.textContent = `detectado (${restored.detected[idx]})`.length > 40
+          ? 'detectado'
+          : `detectado`;
+        statusEl.className = 'status-pill ok';
+      }else{
+        statusEl.textContent = 'restaurado';
+        statusEl.className = 'status-pill ok';
+      }
     }
   });
 
@@ -221,8 +378,17 @@ function addRow(){
   rmBtn.addEventListener('click', () => {
     delete rowsData[id];
     tr.remove();
+    dbDeleteRow(id);
     updateDownloadState();
   });
+
+  if(restored){
+    numeroInput.value = rowsData[id].numero;
+    areaSelect.value = rowsData[id].area;
+    semestreSelect.value = rowsData[id].semestre;
+    renderFinalNames(id);
+    checkMismatch(id);
+  }
 
   updateRowEstado(id);
   updateDownloadState();
@@ -287,7 +453,25 @@ function updateRowEstado(id){
   tr.classList.toggle('row-incomplete', !complete);
 }
 
-addRowBtn.addEventListener('click', addRow);
+addRowBtn.addEventListener('click', () => addRow());
+
+if(clearSavedBtn){
+  clearSavedBtn.addEventListener('click', async () => {
+    const total = Object.keys(rowsData).length;
+    const ok = confirm(
+      total
+        ? `Esto borrará las ${total} fila(s) actuales y todo lo guardado en este navegador. ¿Continuar?`
+        : 'Esto borrará todo lo guardado en este navegador. ¿Continuar?'
+    );
+    if(!ok) return;
+    await dbClearAll();
+    Object.keys(rowsData).forEach(id => delete rowsData[id]);
+    rowsBody.innerHTML = '';
+    rowCounter = 0;
+    addRow();
+    actionMsg.textContent = 'Autoguardado vaciado';
+  });
+}
 
 function updateDownloadState(){
   const ids = Object.keys(rowsData);
@@ -349,7 +533,7 @@ downloadBtn.addEventListener('click', async () => {
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
 
-    actionMsg.textContent = `ZIP descargado con ${ids.length} asesoría${ids.length > 1 ? 's' : ''}`;
+    actionMsg.textContent = `ZIP descargado con ${ids.length} asesoría${ids.length > 1 ? 's' : ''}. Puedes usar "Vaciar guardado" si ya no necesitas conservar estos datos.`;
   }catch(err){
     actionMsg.textContent = 'Error al generar el ZIP: ' + err.message;
   }
@@ -411,4 +595,24 @@ if(window.pdfjsLib){
   pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 }
 
-addRow();
+// --- Arranque: restaurar filas guardadas o empezar con una fila vacía ---
+(async function init(){
+  const saved = await dbGetAllRows();
+  if(saved && saved.length){
+    saved.sort((a, b) => {
+      const na = parseInt(String(a.id).split('-')[1], 10) || 0;
+      const nb = parseInt(String(b.id).split('-')[1], 10) || 0;
+      return na - nb;
+    });
+    let maxIndex = -1;
+    saved.forEach(r => {
+      const n = parseInt(String(r.id).split('-')[1], 10);
+      if(!isNaN(n) && n > maxIndex) maxIndex = n;
+      addRow(r);
+    });
+    rowCounter = maxIndex + 1;
+    actionMsg.textContent = `Se restauraron ${saved.length} fila${saved.length > 1 ? 's' : ''} guardada${saved.length > 1 ? 's' : ''} de la sesión anterior`;
+  }else{
+    addRow();
+  }
+})();
