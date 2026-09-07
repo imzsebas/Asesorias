@@ -325,6 +325,32 @@ button.ghost:hover{border-color:var(--blue-500); background:var(--blue-100); opa
   flex-wrap:wrap;
   gap:10px;
 }
+.toolbar-left{
+  display:flex;
+  gap:10px;
+  flex-wrap:wrap;
+}
+button.danger-ghost:hover{
+  border-color:var(--danger);
+  background:var(--danger-bg);
+  color:var(--danger);
+}
+.save-indicator{
+  font-family:var(--font-mono);
+  font-size:0.72rem;
+  color:var(--ink-faint);
+  min-width:80px;
+  text-align:right;
+}
+.save-indicator.ok{color:var(--ok);}
+.save-indicator.error{color:var(--danger);}
+.autosave-note{
+  font-family:var(--font-mono);
+  font-size:0.7rem;
+  color:var(--ink-faint);
+  margin:8px 0 0;
+  line-height:1.5;
+}
 
 .action-row{
   margin-top:24px;
@@ -444,7 +470,12 @@ footer{
   .toolbar{
     margin-top:20px;
   }
+  .toolbar-left{
+    width:100%;
+    flex-direction:column;
+  }
   .toolbar .ghost{width:100%;}
+  .save-indicator{width:100%; text-align:left;}
 
   .action-row{
     flex-direction:column-reverse;
