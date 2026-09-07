@@ -1,6 +1,6 @@
 // optional:true = no bloquea la descarga si falta ese archivo
 const TEMPLATES = [
-  { label: "ASESORÍA No.", prefix: "ASESORÍA No.", optional: false },
+  { label: "ASESORÍA No.", prefix: "ASESORÍA No.", optional: true },
   { label: "ANEXOS ASESORÍA No.", prefix: "ANEXOS ASESORÍA No.", optional: true },
   { label: "FORMATO ARCHIVO ASESORIA No.", prefix: "FORMATO ARCHIVO ASESORIA No.", optional: false }
 ];
