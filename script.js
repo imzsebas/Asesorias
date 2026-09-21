@@ -1,25 +1,28 @@
-// optional:true = no bloquea la descarga si falta ese archivo
+// multiple:true = la columna acepta varios archivos (se combinan en un solo PDF al exportar)
 const TEMPLATES = [
-  { label: "ASESORÍA No.", prefix: "ASESORÍA No.", optional: false },
-  { label: "ANEXOS ASESORÍA No.", prefix: "ANEXOS ASESORÍA No.", optional: true },
-  { label: "FORMATO ARCHIVO ASESORIA No.", prefix: "FORMATO ARCHIVO ASESORIA No.", optional: false }
+  { label: "ASESORÍA No.", prefix: "ASESORÍA No.", multiple: false },
+  { label: "ANEXOS ASESORÍA No.", prefix: "ANEXOS ASESORÍA No.", multiple: true },
+  { label: "FORMATO ARCHIVO ASESORIA No.", prefix: "FORMATO ARCHIVO ASESORIA No.", multiple: false }
 ];
 
+// label = texto del selector · folder = nombre de la carpeta dentro del ZIP
 const AREAS = [
-  { value: 'laboral', label: 'Derecho Laboral' },
-  { value: 'penal', label: 'Derecho Penal' },
-  { value: 'privado', label: 'Derecho Privado' },
-  { value: 'publico', label: 'Derecho Público' }
+  { value: 'laboral', label: 'Derecho Laboral', folder: 'DERECHO LABORAL' },
+  { value: 'penal', label: 'Derecho Penal', folder: 'DERECHO PENAL' },
+  { value: 'privado', label: 'Derecho Privado', folder: 'DERECHO PRIVADO' },
+  { value: 'publico', label: 'Derecho Público', folder: 'DERECHO PÚBLICO' }
 ];
 
-// Genera opciones tipo "2026-1" / "2026-2" para un rango razonable de años
-// alrededor del año actual, calculado en el navegador (siempre vigente).
+const ROOT_FOLDER = 'FORMATOS Y ADJUNTOS ASESORIAS';
+const ACCEPT = '.pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+
+// Genera opciones tipo "2025-I" / "2025-II" desde 2020 hasta el año actual
 function buildSemestreOptions(){
   const y = new Date().getFullYear();
   const opts = [];
   for(let year = 2020; year <= y; year++){
-    opts.push(`${year}-1`);
-    opts.push(`${year}-2`);
+    opts.push(`${year}-I`);
+    opts.push(`${year}-II`);
   }
   return opts;
 }
@@ -55,17 +58,35 @@ const downloadBtn = document.getElementById('downloadBtn');
 const actionMsg = document.getElementById('actionMsg');
 
 let rowCounter = 0;
-// id -> { numero, numeroTouched, area, semestre, files: [null,null,null], detected: [null,null,null] }
+// id -> { numero, numeroTouched, area, semestre, files, detected }
+// files[idx] = File | null (columnas simples)  ·  File[] (columna múltiple, ANEXOS)
 const rowsData = {};
 
-// Evita que el navegador navegue a "file://" o abra el PDF a pantalla completa
-// si el usuario suelta el archivo un poco fuera de una zona de drop.
 window.addEventListener('dragover', (e) => e.preventDefault());
 window.addEventListener('drop', (e) => e.preventDefault());
 
+// Tipo de archivo aceptado: 'pdf', 'docx', 'doc' (Word antiguo, no soportado) o null
+function fileKind(file){
+  const name = file.name || '';
+  if(file.type === 'application/pdf' || /\.pdf$/i.test(name)) return 'pdf';
+  if(/\.docx$/i.test(name) || file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') return 'docx';
+  if(/\.doc$/i.test(name)) return 'doc';
+  return null;
+}
+
+function filesOf(r, idx){
+  const f = r.files[idx];
+  if(Array.isArray(f)) return f;
+  return f ? [f] : [];
+}
+
 function addRow(){
   const id = 'row-' + (rowCounter++);
-  rowsData[id] = { numero: '', numeroTouched: false, area: '', semestre: '', files: [null, null, null], detected: [null, null, null] };
+  rowsData[id] = {
+    numero: '', numeroTouched: false, area: '', semestre: '',
+    files: TEMPLATES.map(t => t.multiple ? [] : null),
+    detected: [null, null, null]
+  };
 
   const tr = document.createElement('tr');
   tr.id = id;
@@ -79,13 +100,14 @@ function addRow(){
     const td = document.createElement('td');
     td.innerHTML = `
       <label class="drop" id="drop-${id}-${idx}">
-        <input type="file" accept="application/pdf" id="file-${id}-${idx}">
+        <input type="file" accept="${ACCEPT}" ${tpl.multiple ? 'multiple' : ''} id="file-${id}-${idx}">
         <span class="drop-icon" aria-hidden="true">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 3v12m0 0-4-4m4 4 4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </span>
-        <span id="dropText-${id}-${idx}">Arrastra o haz clic</span>
+        <span id="dropText-${id}-${idx}">${tpl.multiple ? 'Arrastra o haz clic (varios)' : 'Arrastra o haz clic'}</span>
       </label>
-      <div class="status-pill idle" id="status-${id}-${idx}">${tpl.optional ? 'opcional' : 'sin archivo'}</div>
+      ${tpl.multiple ? `<ul class="file-list" id="list-${id}-${idx}"></ul>` : ''}
+      <div class="status-pill idle" id="status-${id}-${idx}">sin archivo</div>
       <div class="final-name" id="finalname-${id}-${idx}">${tpl.prefix} —.pdf</div>
     `;
     tr.appendChild(td);
@@ -146,6 +168,9 @@ function addRow(){
     const dropLabel = tr.querySelector(`#drop-${id}-${idx}`);
     const dropText = tr.querySelector(`#dropText-${id}-${idx}`);
     const statusEl = tr.querySelector(`#status-${id}-${idx}`);
+    const listEl = tr.querySelector(`#list-${id}-${idx}`);
+
+    const idleText = tpl.multiple ? 'Arrastra o haz clic (varios)' : 'Arrastra o haz clic';
 
     ['dragenter','dragover','dragleave','drop'].forEach(evt => {
       dropLabel.addEventListener(evt, (e) => {
@@ -157,18 +182,12 @@ function addRow(){
 
         if(evt !== 'drop') return;
 
-        const dt = e.dataTransfer;
-        const droppedFiles = dt && dt.files;
-
+        const droppedFiles = e.dataTransfer && e.dataTransfer.files;
         if(droppedFiles && droppedFiles.length){
-          input.files = droppedFiles;
-          handleFile(droppedFiles[0]);
+          handleFiles(droppedFiles);
           return;
         }
 
-        // Algunos orígenes (p.ej. la vista previa de un adjunto dentro de
-        // Gmail) sueltan una referencia sin exponer el archivo real todavía.
-        // En vez de fallar en silencio, avisamos qué hacer.
         statusEl.textContent = 'no se pudo leer el archivo';
         statusEl.className = 'status-pill warn';
         dropText.textContent = 'Descárgalo y suéltalo de nuevo aquí';
@@ -176,37 +195,95 @@ function addRow(){
     });
 
     input.addEventListener('change', () => {
-      if(input.files.length) handleFile(input.files[0]);
+      if(input.files.length) handleFiles(input.files);
     });
 
-    async function handleFile(file){
-      const isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
-      if(!isPdf){
-        statusEl.textContent = 'ese archivo no es un PDF';
+    // Pinta el estado actual de la celda (nombre / lista de anexos)
+    function renderSlot(){
+      const current = filesOf(rowsData[id], idx);
+      dropLabel.classList.toggle('has-file', current.length > 0);
+
+      if(tpl.multiple){
+        dropText.textContent = current.length ? 'Añadir más archivos' : idleText;
+        listEl.innerHTML = '';
+        current.forEach((f, i) => {
+          const li = document.createElement('li');
+          const name = document.createElement('span');
+          name.textContent = `${i + 1}. ${f.name}`;
+          const rm = document.createElement('button');
+          rm.type = 'button';
+          rm.className = 'file-rm';
+          rm.title = 'Quitar este archivo';
+          rm.textContent = '✕';
+          rm.addEventListener('click', () => {
+            rowsData[id].files[idx].splice(i, 1);
+            if(!rowsData[id].files[idx].length){
+              rowsData[id].detected[idx] = null;
+              statusEl.textContent = 'sin archivo';
+              statusEl.className = 'status-pill idle';
+            }
+            renderSlot();
+            renderFinalNames(id);
+            checkMismatch(id);
+            updateRowEstado(id);
+            updateDownloadState();
+          });
+          li.appendChild(name);
+          li.appendChild(rm);
+          listEl.appendChild(li);
+        });
+      }else{
+        dropText.textContent = current.length ? current[0].name : idleText;
+      }
+    }
+
+    async function handleFiles(fileList){
+      const picked = Array.from(fileList);
+      input.value = ''; // permite volver a elegir el mismo archivo
+
+      const valid = picked.filter(f => ['pdf', 'docx'].includes(fileKind(f)));
+      const oldWord = picked.filter(f => fileKind(f) === 'doc');
+
+      if(!valid.length){
+        statusEl.textContent = oldWord.length
+          ? 'guarda el .doc como .docx o PDF'
+          : 'solo PDF o Word (.docx)';
         statusEl.className = 'status-pill warn';
-        dropText.textContent = 'Arrastra o haz clic';
         return;
       }
 
-      rowsData[id].files[idx] = file;
-      rowsData[id].detected[idx] = null;
-      dropLabel.classList.add('has-file');
-      dropText.textContent = file.name;
+      if(tpl.multiple){
+        rowsData[id].files[idx].push(...valid);
+      }else{
+        rowsData[id].files[idx] = valid[0];
+        rowsData[id].detected[idx] = null;
+      }
+      renderSlot();
+
       statusEl.textContent = 'buscando número...';
       statusEl.className = 'status-pill idle';
 
-      const result = await detectNumero(file);
+      let found = null;
+      for(const f of (tpl.multiple ? valid : [valid[0]])){
+        found = await detectNumero(f);
+        if(found.numero) break;
+      }
 
-      if(result.numero){
-        rowsData[id].detected[idx] = result.numero;
-        statusEl.textContent = `detectado (${result.source})`;
+      if(found && found.numero){
+        rowsData[id].detected[idx] = found.numero;
+        statusEl.textContent = `detectado (${found.source})`;
         statusEl.className = 'status-pill ok';
         if(!rowsData[id].numeroTouched){
-          numeroInput.value = result.numero;
-          rowsData[id].numero = result.numero;
+          numeroInput.value = found.numero;
+          rowsData[id].numero = found.numero;
         }
       }else{
         statusEl.textContent = 'no detectado';
+        statusEl.className = 'status-pill warn';
+      }
+
+      if(oldWord.length){
+        statusEl.textContent += ` · ${oldWord.length} .doc omitido(s): guárdalo(s) como .docx`;
         statusEl.className = 'status-pill warn';
       }
 
@@ -228,26 +305,23 @@ function addRow(){
   updateDownloadState();
 }
 
-// Detecta el número de asesoría probando primero el nombre del archivo
-// y luego el contenido del PDF. Funciona igual sin importar cuál de las
-// 3 columnas sea: cualquier archivo que traiga el dato es válido.
+// Detecta el número de asesoría: primero el nombre del archivo, luego el contenido (PDF o Word).
 async function detectNumero(file){
   let numero = extractFromFilename(file.name);
   if(numero) return { numero, source: 'nombre del archivo' };
 
   try{
-    numero = await extractFromPdfContent(file);
-    if(numero) return { numero, source: 'contenido del PDF' };
+    const kind = fileKind(file);
+    numero = kind === 'docx' ? await extractFromDocxContent(file) : await extractFromPdfContent(file);
+    if(numero) return { numero, source: kind === 'docx' ? 'contenido del Word' : 'contenido del PDF' };
   }catch(e){ /* seguimos sin dato */ }
 
   return { numero: null, source: null };
 }
 
-// Compara lo detectado en cada uno de los archivos de la fila.
-// Si dos archivos traen números distintos, se marca visualmente para
-// que el usuario lo revise, en vez de asumir que uno manda sobre otro.
 function checkMismatch(id){
   const numeroInput = document.getElementById(`numero-${id}`);
+  if(!rowsData[id]) return;
   const detected = rowsData[id].detected.filter(Boolean);
   const unique = [...new Set(detected)];
   if(numeroInput){
@@ -258,8 +332,7 @@ function checkMismatch(id){
   }
 }
 
-// Rellena el número con ceros a la izquierda hasta 4 dígitos (ej. "13" -> "0013").
-// Si el número ya tiene 4 o más dígitos, se deja igual.
+// Rellena con ceros a la izquierda hasta 4 dígitos (ej. "13" -> "0013")
 function formatNumero(numero){
   return numero.toString().padStart(4, '0');
 }
@@ -272,19 +345,17 @@ function renderFinalNames(id){
   });
 }
 
-// Requisitos mínimos de una fila: número + los archivos NO opcionales.
-// ANEXOS puede faltar sin bloquear la fila.
+// Una fila está lista con: número + área + semestre + AL MENOS UNO de los 3 archivos
 function isRowComplete(id){
   const r = rowsData[id];
-  const requiredOk = TEMPLATES.every((tpl, idx) => tpl.optional || r.files[idx] !== null);
-  return r.numero.length > 0 && requiredOk && r.area !== '' && r.semestre !== '';
+  const hasAnyFile = TEMPLATES.some((tpl, idx) => filesOf(r, idx).length > 0);
+  return r.numero.length > 0 && hasAnyFile && r.area !== '' && r.semestre !== '';
 }
 
 function updateRowEstado(id){
   const tr = document.getElementById(id);
   if(!tr) return;
-  const complete = isRowComplete(id);
-  tr.classList.toggle('row-incomplete', !complete);
+  tr.classList.toggle('row-incomplete', !isRowComplete(id));
 }
 
 addRowBtn.addEventListener('click', addRow);
@@ -303,47 +374,106 @@ function updateDownloadState(){
     : '';
 }
 
+// ===================== CONVERSIÓN / COMBINADO =====================
+
+// Word (.docx) -> PDF (bytes). Usa mammoth (docx -> HTML) y html2pdf (HTML -> PDF).
+async function docxToPdfBytes(file){
+  const arrayBuffer = await file.arrayBuffer();
+  const { value: html } = await mammoth.convertToHtml({ arrayBuffer });
+
+  const el = document.createElement('div');
+  el.innerHTML = `
+    <style>
+      .docx-pdf{font-family:"Times New Roman", Times, serif; font-size:12pt; line-height:1.4; color:#000; background:#fff;}
+      .docx-pdf p{margin:0 0 8pt;}
+      .docx-pdf h1,.docx-pdf h2,.docx-pdf h3,.docx-pdf h4{margin:12pt 0 6pt;}
+      .docx-pdf table{border-collapse:collapse; width:100%; margin:8pt 0;}
+      .docx-pdf td,.docx-pdf th{border:1px solid #000; padding:4pt 6pt; vertical-align:top;}
+      .docx-pdf img{max-width:100%;}
+      .docx-pdf ul,.docx-pdf ol{margin:0 0 8pt 20pt;}
+    </style>
+    <div class="docx-pdf">${html}</div>`;
+
+  const buf = await html2pdf().set({
+    margin: [15, 15, 15, 15],
+    image: { type: 'jpeg', quality: 0.95 },
+    html2canvas: { scale: 2, useCORS: true },
+    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+    pagebreak: { mode: ['css', 'legacy'] }
+  }).from(el).outputPdf('arraybuffer');
+
+  return new Uint8Array(buf);
+}
+
+// Cualquier archivo aceptado -> bytes de PDF
+async function toPdfBytes(file){
+  if(fileKind(file) === 'docx') return await docxToPdfBytes(file);
+  return new Uint8Array(await file.arrayBuffer());
+}
+
+// Une varios PDFs (en el orden dado) en uno solo
+async function mergePdfs(byteArrays){
+  const out = await PDFLib.PDFDocument.create();
+  for(const bytes of byteArrays){
+    const doc = await PDFLib.PDFDocument.load(bytes, { ignoreEncryption: true });
+    const pages = await out.copyPages(doc, doc.getPageIndices());
+    pages.forEach(p => out.addPage(p));
+  }
+  return await out.save();
+}
+
+// Devuelve los bytes finales de una celda: 1 archivo -> convertido a PDF; varios -> combinados
+async function buildCellPdf(files){
+  if(files.length === 1) return await toPdfBytes(files[0]);
+  const all = [];
+  for(const f of files) all.push(await toPdfBytes(f));
+  return await mergePdfs(all);
+}
+
+// ===================== DESCARGA =====================
+
 downloadBtn.addEventListener('click', async () => {
   const ids = Object.keys(rowsData);
   if(ids.length === 0) return;
   downloadBtn.disabled = true;
-  actionMsg.textContent = 'Generando ZIP...';
 
   try{
     const zip = new JSZip();
-    const summaryLines = [
-      'Código de asesoría | Área del derecho | Semestre',
-      '-------------------------------------------------'
-    ];
+    const root = zip.folder(ROOT_FOLDER);
 
-    // Agrupamos por "Área + Semestre" (p.ej. "Derecho Laboral 2026-1") y,
-    // dentro de cada grupo, cada asesoría mantiene su propia subcarpeta.
-    // Los nombres de los PDFs no cambian, solo las carpetas que los contienen.
-    ids.forEach(id => {
+    let step = 0;
+    for(const id of ids){
       const r = rowsData[id];
-      const areaLabel = AREAS.find(a => a.value === r.area)?.label || r.area;
+      step++;
+      const area = AREAS.find(a => a.value === r.area);
       const numeroFmt = formatNumero(r.numero);
-      const groupFolderName = `${areaLabel} ${r.semestre}`;
-      const groupFolder = zip.folder(groupFolderName);
-      const asesoriaFolder = groupFolder.folder(`ASESORÍA No.${numeroFmt}`);
 
-      TEMPLATES.forEach((tpl, idx) => {
-        const file = r.files[idx];
-        if(!file) return; // ANEXOS puede no venir; no se incluye en el zip
-        const finalName = `${tpl.prefix}${numeroFmt}.pdf`;
-        asesoriaFolder.file(finalName, file);
-      });
+      // FORMATOS Y ADJUNTOS ASESORIAS / 2025-I / DERECHO PÚBLICO / ASESORÍA No.XXXX / archivos
+      const asesoriaFolder = root
+        .folder(r.semestre)
+        .folder(area ? area.folder : r.area.toUpperCase())
+        .folder(`ASESORÍA No.${numeroFmt}`);
 
-      summaryLines.push(`${numeroFmt} | ${areaLabel} | ${r.semestre}`);
-    });
+      for(let idx = 0; idx < TEMPLATES.length; idx++){
+        const files = filesOf(r, idx);
+        if(!files.length) continue;
+        const tpl = TEMPLATES[idx];
+        actionMsg.textContent = `Procesando asesoría ${step} de ${ids.length}: ${tpl.label}...`;
+        try{
+          const bytes = await buildCellPdf(files);
+          asesoriaFolder.file(`${tpl.prefix}${numeroFmt}.pdf`, bytes);
+        }catch(err){
+          throw new Error(`No se pudo procesar "${files.map(f => f.name).join(', ')}" (${err.message})`);
+        }
+      }
+    }
 
-    zip.file('resumen_asesorias.txt', summaryLines.join('\n'));
-
+    actionMsg.textContent = 'Generando ZIP...';
     const blob = await zip.generateAsync({ type: 'blob' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'Asesorias.zip';
+    a.download = `${ROOT_FOLDER}.zip`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -356,6 +486,8 @@ downloadBtn.addEventListener('click', async () => {
   downloadBtn.disabled = false;
 });
 
+// ===================== DETECCIÓN DEL NÚMERO =====================
+
 // Quita tildes/diacríticos para que "ASESORÍA" y "ASESORIA" matcheen igual
 function normalize(text){
   return text.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
@@ -364,7 +496,6 @@ function normalize(text){
 function extractFromFilename(name){
   const clean = normalize(name);
 
-  // Patrones típicos: "No. 4113", "N° 4113", "Nro 4113", "# 4113"
   const patterns = [
     /no\.?\s*(\d{3,6})/i,
     /n[°º]\s*(\d{3,6})/i,
@@ -376,9 +507,23 @@ function extractFromFilename(name){
     if(m) return m[1];
   }
 
-  // Sin prefijo reconocible: toma el número más largo (más específico)
   const all = clean.match(/\d{3,6}/g);
   if(all && all.length) return all.sort((a,b) => b.length - a.length)[0];
+  return null;
+}
+
+function extractFromText(text){
+  const clean = normalize(text);
+  const patterns = [
+    /asesor[i]a\s*no\.?\s*(\d{3,6})/i,
+    /asesor[i]a\s*n[°º]\s*(\d{3,6})/i,
+    /no\.?\s*(\d{3,6})/i,
+    /n[°º]\s*(\d{3,6})/i
+  ];
+  for(const p of patterns){
+    const m = clean.match(p);
+    if(m) return m[1];
+  }
   return null;
 }
 
@@ -392,19 +537,13 @@ async function extractFromPdfContent(file){
     const content = await page.getTextContent();
     fullText += content.items.map(it => it.str).join(' ') + ' ';
   }
-  const clean = normalize(fullText);
+  return extractFromText(fullText);
+}
 
-  const patterns = [
-    /asesor[i]a\s*no\.?\s*(\d{3,6})/i,
-    /asesor[i]a\s*n[°º]\s*(\d{3,6})/i,
-    /no\.?\s*(\d{3,6})/i,
-    /n[°º]\s*(\d{3,6})/i
-  ];
-  for(const p of patterns){
-    const m = clean.match(p);
-    if(m) return m[1];
-  }
-  return null;
+async function extractFromDocxContent(file){
+  const arrayBuffer = await file.arrayBuffer();
+  const { value } = await mammoth.extractRawText({ arrayBuffer });
+  return extractFromText(value.slice(0, 3000));
 }
 
 if(window.pdfjsLib){
