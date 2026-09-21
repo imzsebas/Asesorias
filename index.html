@@ -7,6 +7,9 @@
 <link rel="stylesheet" href="styles.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 </head>
 <body>
 <div class="wrap">
@@ -39,13 +42,9 @@
   </div>
 
   <div class="toolbar">
-    <div class="toolbar-left">
-      <button class="ghost" id="addRowBtn">+ Agregar</button>
-      <button class="ghost danger-ghost" id="clearSavedBtn">Vaciar guardado</button>
-    </div>
-    <span class="save-indicator" id="saveIndicator"></span>
+    <button class="ghost" id="addRowBtn">+ Agregar</button>
+    <span></span>
   </div>
-  <p class="autosave-note">Los datos de esta tabla (incluyendo los PDFs) se guardan automáticamente en este navegador para que no se pierdan si recargas la página o se apaga el equipo. No se suben a internet ni se sincronizan con otros dispositivos.</p>
 
   <div class="action-row">
     <span class="msg" id="actionMsg"></span>
