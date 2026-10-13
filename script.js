@@ -1,7 +1,7 @@
 // multiple:true = la columna acepta varios archivos (se combinan en un solo PDF al exportar)
 const TEMPLATES = [
-  { label: "ASESORÍA No.", prefix: "ASESORÍA No.", multiple: false },
-  { label: "ANEXOS ASESORÍA No.", prefix: "ANEXOS ASESORÍA No.", multiple: true },
+  { label: "ASESORIA No.", prefix: "ASESORIA No.", multiple: false },
+  { label: "ANEXOS ASESORIA No.", prefix: "ANEXOS ASESORIA No.", multiple: true },
   { label: "FORMATO ARCHIVO ASESORIA No.", prefix: "FORMATO ARCHIVO ASESORIA No.", multiple: false }
 ];
 
@@ -370,7 +370,7 @@ function updateDownloadState(){
   const allComplete = ids.every(isRowComplete);
   downloadBtn.disabled = !allComplete;
   actionMsg.textContent = allComplete
-    ? `Listo para generar el ZIP (${ids.length} asesoría${ids.length > 1 ? 's' : ''})`
+    ? `Listo para generar el ZIP (${ids.length} asesoria${ids.length > 1 ? 's' : ''})`
     : '';
 }
 
@@ -452,7 +452,7 @@ downloadBtn.addEventListener('click', async () => {
       const asesoriaFolder = root
         .folder(r.semestre)
         .folder(area ? area.folder : r.area.toUpperCase())
-        .folder(`ASESORÍA No.${numeroFmt}`);
+        .folder(`ASESORIA No.${numeroFmt}`);
 
       for(let idx = 0; idx < TEMPLATES.length; idx++){
         const files = filesOf(r, idx);
@@ -479,7 +479,7 @@ downloadBtn.addEventListener('click', async () => {
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
 
-    actionMsg.textContent = `ZIP descargado con ${ids.length} asesoría${ids.length > 1 ? 's' : ''}`;
+    actionMsg.textContent = `ZIP descargado con ${ids.length} asesoria${ids.length > 1 ? 's' : ''}`;
   }catch(err){
     actionMsg.textContent = 'Error al generar el ZIP: ' + err.message;
   }
